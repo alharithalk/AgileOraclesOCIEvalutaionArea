@@ -106,7 +106,8 @@
                             loginBanner.classList.add('show');
                             return;
                         }
-                        showError('Could not load files (HTTP ' + status + '). Please try again later.');
+                        showError('Could not load files (HTTP ' + status + '): ' +
+                            ((data && data.error) ? data.error : 'Please try again later.'));
                         return;
                     }
                     const list = Array.isArray(data) ? data : (data && data.records) ? data.records : [];

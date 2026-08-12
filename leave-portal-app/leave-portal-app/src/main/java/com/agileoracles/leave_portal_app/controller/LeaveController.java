@@ -1,6 +1,7 @@
 package com.agileoracles.leave_portal_app.controller;
 
 import com.agileoracles.leave_portal_app.model.LeaveCategory;
+import com.agileoracles.leave_portal_app.model.LeaveRecordSummary;
 import com.agileoracles.leave_portal_app.model.LeaveResponse;
 import com.agileoracles.leave_portal_app.model.LeaveUploadRecord;
 import com.agileoracles.leave_portal_app.repository.LeaveUploadRepository;
@@ -24,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/leave")
@@ -80,8 +82,14 @@ public class LeaveController {
     }
 
     @GetMapping("/records")
-    public List<LeaveUploadRecord> records(@AuthenticationPrincipal OAuth2User user) {
-        return leaveUploadRepository.findByUserEmail(emailOf(user));
+    public List<LeaveRecordSummary> records(@AuthenticationPrincipal OAuth2User user) {
+        String email = emailOf(user);
+        if (email == null || email.isBlank() || "unknown".equalsIgnoreCase(email)) {
+            return List.of();
+        }
+        return leaveUploadRepository.findByUserEmail(email).stream()
+                .map(LeaveController::toSummary)
+                .collect(Collectors.toList());
     }
 
     @GetMapping(value = "/files/{objectName}", produces = MediaType.TEXT_PLAIN_VALUE)
@@ -108,5 +116,14 @@ public class LeaveController {
         record.setOciObjectId(ociResult.get("objectId"));
         record.setOciBucketName(ociResult.get("bucketName"));
         return record;
+    }
+
+    private static LeaveRecordSummary toSummary(LeaveUploadRecord record) {
+        return new LeaveRecordSummary(
+                record.getId(),
+                record.getAttachedFilename(),
+                record.getLeaveCategory(),
+                record.getCreatedAt(),
+                record.getOciObjectName());
     }
 }
