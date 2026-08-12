@@ -2,6 +2,8 @@ package com.agileoracles.leave_portal_app.model;
 
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 @Entity
@@ -19,6 +21,7 @@ public class LeaveUploadRecord {
     @Enumerated(EnumType.STRING)
     private LeaveCategory leaveCategory;
 
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
     private Instant createdAt;
     private String ociObjectName;
     private String ociObjectId;
