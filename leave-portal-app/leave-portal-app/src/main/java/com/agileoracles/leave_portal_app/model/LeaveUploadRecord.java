@@ -18,7 +18,7 @@ public class LeaveUploadRecord {
     private String attachedFilename;
     private String reasonForLeave;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = LeaveCategoryConverter.class)
     private LeaveCategory leaveCategory;
 
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
