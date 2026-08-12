@@ -24,3 +24,4 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable());  // ← DISABLE default form login
         return http.build();
     }
+}
