@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Files — Leave Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="navbar">
+        <a class="brand" href="/upload.html"><span class="logo">LP</span> Leave Portal</a>
+        <nav>
+            <a href="/upload.html">Upload</a>
+            <a href="/files.html" class="active">My Files</a>
+        </nav>
+        <div class="spacer"></div>
+        <div class="user-chip hidden" id="userChip"></div>
+        <button class="btn-signout hidden" id="signOutBtn" type="button">Sign out</button>
+    </div>
+
+    <div class="container">
+        <h1 class="page-title">My Uploaded Files</h1>
+        <p class="page-sub">All leave request files you have uploaded, with their detected category.</p>
+
+        <div class="banner warn" id="loginBanner">
+            You're not signed in. <a href="/oauth2/authorization/google">Sign in with Google</a> to see your files.
+        </div>
+
+        <div class="banner error" id="errorBanner"></div>
+
+        <div class="table-wrap hidden" id="tableWrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>File name</th>
+                        <th>Category</th>
+                        <th>Uploaded at</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+
+        <div class="card empty hidden" id="emptyState">
+            <div class="empty-icon">📂</div>
+            <div>No files uploaded yet.</div>
+            <a class="btn-link" href="/upload.html">Upload your first leave request →</a>
+        </div>
+    </div>
+
+    <div class="footer">Leave Portal · OCI Evaluation Project</div>
+
+    <script>
+        const rows = document.getElementById('rows');
+        const tableWrap = document.getElementById('tableWrap');
+        const emptyState = document.getElementById('emptyState');
+        const loginBanner = document.getElementById('loginBanner');
+        const errorBanner = document.getElementById('errorBanner');
+
+        init();
+
+        function init() {
+            checkAuth().then(user => {
+                if (user) {
+                    setUserChip(user);
+                    loadRecords();
+                } else {
+                    loginBanner.classList.add('show');
+                }
+            });
+        }
+
+        function checkAuth() {
+            return fetch('/api/leave/status', { redirect: 'manual' })
+                .then(resp => {
+                    if (!resp.ok) return null;
+                    return resp.text().then(t => {
+                        const m = t.match(/Logged in as:\s*(.+)/);
+                        return m ? m[1].trim() : null;
+                    });
+                })
+                .catch(() => null);
+        }
+
+        function setUserChip(email) {
+            const chip = document.getElementById('userChip');
+            const initial = email.charAt(0).toUpperCase();
+            chip.classList.remove('hidden');
+            chip.innerHTML = '<span class="avatar">' + initial + '</span><span class="email">' + escapeHtml(email) + '</span>';
+            document.getElementById('signOutBtn').classList.remove('hidden');
+        }
+
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            fetch('/logout', { method: 'POST', redirect: 'manual' }).finally(() => {
+                window.location.href = '/login.html';
+            });
+        });
+
+        function loadRecords() {
+            fetch('/api/leave/records')
+                .then(resp => resp.json().catch(() => null).then(data => ({ ok: resp.ok, status: resp.status, data })))
+                .then(({ ok, status, data }) => {
+                    if (!ok) {
+                        if (status === 401 || status === 403) {
+                            loginBanner.classList.add('show');
+                            return;
+                        }
+                        showError('Could not load files (HTTP ' + status + '). Please try again later.');
+                        return;
+                    }
+                    const list = Array.isArray(data) ? data : (data && data.records) ? data.records : [];
+                    if (!list.length) {
+                        emptyState.classList.remove('hidden');
+                        return;
+                    }
+                    renderRows(list);
+                })
+                .catch(err => showError('Request error: ' + err.message));
+        }
+
+        function renderRows(list) {
+            rows.innerHTML = list.map(r =>
+                '<tr>' +
+                    '<td class="file-name">' + escapeHtml(r.fileName || r.attachedFilename || r.objectName || '—') + '</td>' +
+                    '<td><span class="badge ' + badgeClass(r.category || r.leaveCategory) + '">' + escapeHtml((r.category || r.leaveCategory || 'OTHER').replace(/_/g, ' ')) + '</span></td>' +
+                    '<td class="cell-muted">' + escapeHtml(formatDate(r.createdAt || r.uploadTimestamp)) + '</td>' +
+                    '<td><a class="view-link" href="/api/leave/files/' + encodeURIComponent(r.objectName || r.ociObjectName) + '" target="_blank" rel="noopener">View file ↗</a></td>' +
+                '</tr>'
+            ).join('');
+            tableWrap.classList.remove('hidden');
+        }
+
+        function formatDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return isNaN(d.getTime()) ? escapeHtml(iso) : d.toLocaleString();
+        }
+
+        function badgeClass(category) {
+            switch ((category || '').toUpperCase()) {
+                case 'SICK_LEAVE': return 'sick';
+                case 'ANNUAL_LEAVE': return 'annual';
+                case 'EMERGENCY_LEAVE': return 'emergency';
+                case 'MATERNITY_LEAVE': return 'maternity';
+                case 'UNPAID_LEAVE': return 'unpaid';
+                default: return 'other';
+            }
+        }
+
+        function showError(msg) {
+            errorBanner.textContent = msg;
+            errorBanner.classList.add('show');
+        }
+
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+    </script>
+</body>
+</html>

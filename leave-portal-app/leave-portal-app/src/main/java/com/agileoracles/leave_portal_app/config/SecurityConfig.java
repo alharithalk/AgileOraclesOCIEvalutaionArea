@@ -13,11 +13,17 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/error", "/login/**", "/oauth2/**").permitAll()
+                        .requestMatchers(
+                                "/", "/error",
+                                "/login.html", "/upload.html", "/files.html",
+                                "/css/**",
+                                "/oauth2/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .defaultSuccessUrl("/api/leave/status", true)
+                        .loginPage("/login.html")
+                        .defaultSuccessUrl("/upload.html", true)
                 );
         return http.build();
     }

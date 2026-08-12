@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload — Leave Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="navbar">
+        <a class="brand" href="/upload.html"><span class="logo">LP</span> Leave Portal</a>
+        <nav>
+            <a href="/upload.html" class="active">Upload</a>
+            <a href="/files.html">My Files</a>
+        </nav>
+        <div class="spacer"></div>
+        <div class="user-chip hidden" id="userChip"></div>
+        <button class="btn-signout hidden" id="signOutBtn" type="button">Sign out</button>
+    </div>
+
+    <div class="container narrow">
+        <h1 class="page-title">Upload Leave Request</h1>
+        <p class="page-sub">Upload a <strong>.txt</strong> file describing your leave. It will be categorized and stored in OCI Object Storage.</p>
+
+        <div class="banner warn" id="loginBanner">
+            You're not signed in. <a href="/oauth2/authorization/google">Sign in with Google</a> to upload files.
+        </div>
+
+        <div class="banner error" id="errorBanner"></div>
+        <div class="banner ok" id="okBanner"></div>
+
+        <div class="card">
+            <div class="dropzone" id="dropzone">
+                <div class="dz-icon">📄</div>
+                <div class="dz-title" id="dzTitle">Click to choose or drag &amp; drop</div>
+                <div class="dz-sub" id="dzSub">Only .txt files are accepted</div>
+            </div>
+            <input type="file" id="fileInput" accept=".txt" class="hidden">
+
+            <div class="form-actions">
+                <button class="btn btn-primary" id="uploadBtn" type="button" disabled>
+                    <span class="spinner" id="spinner"></span>Upload
+                </button>
+            </div>
+        </div>
+
+        <div class="result" id="result">
+            <div class="card">
+                <h3>Upload result <span class="badge" id="catBadge">—</span></h3>
+                <div class="kv-list" id="resultRows"></div>
+                <a class="btn-link" href="/files.html">View all my files →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">Leave Portal · OCI Evaluation Project</div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const dropzone = document.getElementById('dropzone');
+        const dzTitle = document.getElementById('dzTitle');
+        const dzSub = document.getElementById('dzSub');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const spinner = document.getElementById('spinner');
+        const result = document.getElementById('result');
+        const resultRows = document.getElementById('resultRows');
+        const catBadge = document.getElementById('catBadge');
+        const loginBanner = document.getElementById('loginBanner');
+        const errorBanner = document.getElementById('errorBanner');
+        const okBanner = document.getElementById('okBanner');
+
+        let selectedFile = null;
+
+        init();
+
+        function init() {
+            checkAuth().then(user => {
+                if (user) {
+                    loginBanner.classList.remove('show');
+                    setUserChip(user);
+                } else {
+                    loginBanner.classList.add('show');
+                }
+            });
+        }
+
+        function checkAuth() {
+            return fetch('/api/leave/status', { redirect: 'manual' })
+                .then(resp => {
+                    if (!resp.ok) return null;
+                    return resp.text().then(t => {
+                        const m = t.match(/Logged in as:\s*(.+)/);
+                        return m ? m[1].trim() : null;
+                    });
+                })
+                .catch(() => null);
+        }
+
+        function setUserChip(email) {
+            const chip = document.getElementById('userChip');
+            const initial = email.charAt(0).toUpperCase();
+            chip.classList.remove('hidden');
+            chip.innerHTML = '<span class="avatar">' + initial + '</span><span class="email">' + escapeHtml(email) + '</span>';
+            document.getElementById('signOutBtn').classList.remove('hidden');
+        }
+
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            fetch('/logout', { method: 'POST', redirect: 'manual' }).finally(() => {
+                window.location.href = '/login.html';
+            });
+        });
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) setFile(fileInput.files[0]);
+        });
+
+        function setFile(file) {
+            if (!/\.txt$/i.test(file.name)) {
+                showError('Only .txt files are allowed.');
+                return;
+            }
+            selectedFile = file;
+            dzTitle.textContent = file.name;
+            dzSub.textContent = (file.size / 1024).toFixed(1) + ' KB selected';
+            dropzone.classList.add('has-file');
+            uploadBtn.disabled = false;
+            clearMessages();
+        }
+
+        uploadBtn.addEventListener('click', () => {
+            if (!selectedFile) return;
+            clearMessages();
+            uploadBtn.disabled = true;
+            spinner.classList.add('visible');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            fetch('/api/leave/upload', { method: 'POST', body: formData })
+                .then(resp => resp.text().then(t => ({ ok: resp.ok, status: resp.status, body: t })))
+                .then(({ ok, status, body }) => {
+                    if (!ok) {
+                        let msg;
+                        try {
+                            msg = JSON.parse(body).error;
+                        } catch (e) {
+                            msg = 'Request failed (HTTP ' + status + ').';
+                        }
+                        if (status === 401 || status === 403) {
+                            loginBanner.classList.add('show');
+                            showError('You must be signed in to upload.');
+                        } else {
+                            showError(msg);
+                        }
+                        return;
+                    }
+                    renderResult(JSON.parse(body));
+                    showOk('Upload succeeded. File stored in OCI Object Storage.');
+                })
+                .catch(err => showError('Request error: ' + err.message))
+                .finally(() => {
+                    spinner.classList.remove('visible');
+                    uploadBtn.disabled = false;
+                });
+        });
+
+        function renderResult(r) {
+            catBadge.textContent = (r.category || 'OTHER').replace(/_/g, ' ');
+            catBadge.className = 'badge ' + badgeClass(r.category);
+
+            const rows = [
+                ['Authenticated user', escapeHtml(r.authenticatedUser)],
+                ['File name', escapeHtml(r.fileName)],
+                ['Category', escapeHtml(r.category)],
+                ['Matched keywords', escapeHtml(r.matchedKeywords || '—')],
+                ['Upload timestamp', escapeHtml(r.uploadTimestamp)],
+                ['OCI object name', '<span class="mono">' + escapeHtml(r.ociObjectName) + '</span>'],
+                ['OCI object ID', '<span class="mono">' + escapeHtml(r.ociObjectId) + '</span>']
+            ];
+
+            resultRows.innerHTML = rows.map(([k, v]) =>
+                '<div class="kv-row"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'
+            ).join('');
+
+            result.classList.add('show');
+        }
+
+        function badgeClass(category) {
+            switch ((category || '').toUpperCase()) {
+                case 'SICK_LEAVE': return 'sick';
+                case 'ANNUAL_LEAVE': return 'annual';
+                case 'EMERGENCY_LEAVE': return 'emergency';
+                case 'MATERNITY_LEAVE': return 'maternity';
+                case 'UNPAID_LEAVE': return 'unpaid';
+                default: return 'other';
+            }
+        }
+
+        function showError(msg) {
+            errorBanner.textContent = msg;
+            errorBanner.classList.add('show');
+        }
+
+        function showOk(msg) {
+            okBanner.textContent = msg;
+            okBanner.classList.add('show');
+        }
+
+        function clearMessages() {
+            errorBanner.textContent = '';
+            errorBanner.classList.remove('show');
+            okBanner.textContent = '';
+            okBanner.classList.remove('show');
+        }
+
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+    </script>
+</body>
+</html>
