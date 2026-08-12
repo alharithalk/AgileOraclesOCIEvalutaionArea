@@ -13,18 +13,14 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/", "/error",
-                                "/login.html", "/upload.html", "/files.html",
-                                "/css/**",
-                                "/oauth2/**"
-                        ).permitAll()
+                        .requestMatchers("/", "/index.html", "/login.html", "/upload.html", "/files.html", "/css/**", "/js/**").permitAll()
+                        .requestMatchers("/error", "/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login.html")
+                        .loginPage("/login.html")  // ← Use your custom login page
                         .defaultSuccessUrl("/upload.html", true)
-                );
+                )
+                .formLogin(form -> form.disable());  // ← DISABLE default form login
         return http.build();
     }
-}
