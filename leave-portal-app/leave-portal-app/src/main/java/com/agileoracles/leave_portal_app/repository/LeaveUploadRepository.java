@@ -11,4 +11,5 @@ import java.util.List;
 @Repository
 public interface LeaveUploadRepository extends JpaRepository<LeaveUploadRecord, Long> {
     List<LeaveUploadRecord> findByUserEmail(String userEmail);
+
 }

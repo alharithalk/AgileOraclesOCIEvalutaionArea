@@ -82,12 +82,8 @@ public class LeaveController {
     }
 
     @GetMapping("/records")
-    public List<LeaveRecordSummary> records(@AuthenticationPrincipal OAuth2User user) {
-        String email = emailOf(user);
-        if (email == null || email.isBlank() || "unknown".equalsIgnoreCase(email)) {
-            return List.of();
-        }
-        return leaveUploadRepository.findByUserEmail(email).stream()
+    public List<LeaveRecordSummary> records() {
+        return leaveUploadRepository.findAll().stream()
                 .map(LeaveController::toSummary)
                 .collect(Collectors.toList());
     }
