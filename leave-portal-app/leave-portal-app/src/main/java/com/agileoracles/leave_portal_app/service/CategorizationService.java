@@ -14,11 +14,12 @@ public class CategorizationService {
     private static final Map<LeaveCategory, List<String>> KEYWORDS = new LinkedHashMap<>();
 
     static {
-        KEYWORDS.put(LeaveCategory.SICK_LEAVE, List.of("sick", "fever", "medical", "ill", "doctor", "hospital"));
-        KEYWORDS.put(LeaveCategory.ANNUAL_LEAVE, List.of("annual", "vacation", "holiday", "leave", "trip"));
-        KEYWORDS.put(LeaveCategory.EMERGENCY_LEAVE, List.of("emergency", "urgent", "accident", "crisis"));
+        // ORDER MATTERS! Check specific keywords FIRST, generic ones LAST
         KEYWORDS.put(LeaveCategory.MATERNITY_LEAVE, List.of("maternity", "pregnancy", "baby", "birth", "newborn"));
+        KEYWORDS.put(LeaveCategory.EMERGENCY_LEAVE, List.of("emergency", "urgent", "accident", "crisis"));
         KEYWORDS.put(LeaveCategory.UNPAID_LEAVE, List.of("unpaid", "without pay", "no pay"));
+        KEYWORDS.put(LeaveCategory.SICK_LEAVE, List.of("sick", "fever", "medical", "ill", "doctor", "hospital"));
+        KEYWORDS.put(LeaveCategory.ANNUAL_LEAVE, List.of("annual", "vacation", "holiday", "trip")); // REMOVED "leave"!
     }
 
     public LeaveCategory categorize(String content) {
