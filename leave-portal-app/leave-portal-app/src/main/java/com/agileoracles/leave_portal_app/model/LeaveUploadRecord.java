@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "LEAVE_UPLOADS")
+@Table(name = "LEAVE_UPLOAD")
 public class LeaveUploadRecord {
 
     @Id
